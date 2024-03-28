@@ -119,6 +119,8 @@ namespace WebSocketSharp
     private Uri                            _uri;
     private const string                   _version = "13";
     private TimeSpan                       _waitTime;
+    private TimeSpan                       _tcpConnectTimeout = TimeSpan.FromSeconds(3);
+    private TimeSpan                       _handshakeTimeout = TimeSpan.FromSeconds(3);
 
     #endregion
 
@@ -751,6 +753,18 @@ namespace WebSocketSharp
           _waitTime = value;
         }
       }
+    }
+
+    public TimeSpan TCPConnectTimeout
+    {
+      get { return _tcpConnectTimeout; }
+      set { _tcpConnectTimeout = value; }
+    }
+
+    public TimeSpan HandshakeTimeout
+    {
+      get { return _handshakeTimeout; }
+      set { _handshakeTimeout = value; }
     }
 
     #endregion
@@ -2145,7 +2159,7 @@ namespace WebSocketSharp
     {
       var req = createHandshakeRequest ();
 
-      var timeout = 90000;
+      var timeout = (int)_handshakeTimeout.TotalMilliseconds;
       var res = req.GetResponse (_stream, timeout);
 
       if (res.IsUnauthorized) {
@@ -2183,7 +2197,7 @@ namespace WebSocketSharp
           setClientStream ();
         }
 
-        timeout = 15000;
+        //timeout = 15000;
         res = req.GetResponse (_stream, timeout);
       }
 
@@ -2226,7 +2240,7 @@ namespace WebSocketSharp
     {
       var req = HttpRequest.CreateConnectRequest (_uri);
 
-      var timeout = 90000;
+      var timeout = (int) _handshakeTimeout.TotalMilliseconds;
       var res = req.GetResponse (_stream, timeout);
 
       if (res.IsProxyAuthenticationRequired) {
@@ -2260,7 +2274,7 @@ namespace WebSocketSharp
           _stream = _tcpClient.GetStream ();
         }
 
-        timeout = 15000;
+        //timeout = 15000;
         res = req.GetResponse (_stream, timeout);
       }
 
@@ -2271,7 +2285,11 @@ namespace WebSocketSharp
     private void setClientStream ()
     {
       if (_proxyUri != null) {
-        _tcpClient = new TcpClient (_proxyUri.DnsSafeHost, _proxyUri.Port);
+        if (_tcpConnectTimeout == TimeSpan.Zero)
+          _tcpClient = new TcpClient (_proxyUri.DnsSafeHost, _proxyUri.Port);
+        else
+          _tcpClient = tcpClientWithTimeout(_proxyUri.DnsSafeHost, _proxyUri.Port);
+        //_tcpClient = new TcpClient (_proxyUri.DnsSafeHost, _proxyUri.Port);
         _stream = _tcpClient.GetStream ();
 
         var res = sendProxyConnectRequest ();
@@ -2282,7 +2300,11 @@ namespace WebSocketSharp
           throw new WebSocketException (msg);
       }
       else {
-        _tcpClient = new TcpClient (_uri.DnsSafeHost, _uri.Port);
+        if (_tcpConnectTimeout == TimeSpan.Zero)
+          _tcpClient = new TcpClient (_uri.DnsSafeHost, _uri.Port);
+        else
+          _tcpClient = tcpClientWithTimeout(_uri.DnsSafeHost, _uri.Port);
+        //_tcpClient = new TcpClient (_uri.DnsSafeHost, _uri.Port);
         _stream = _tcpClient.GetStream ();
       }
 
@@ -2321,6 +2343,19 @@ namespace WebSocketSharp
                 );
         }
       }
+    }
+        
+    private TcpClient tcpClientWithTimeout(string hostname, int port)
+    {
+        TcpClient tcpClient = new TcpClient();
+        IAsyncResult asyncResult = tcpClient.BeginConnect(hostname, port, null, null);
+        if (!asyncResult.AsyncWaitHandle.WaitOne((int)_tcpConnectTimeout.TotalMilliseconds))
+        {
+            throw new WebSocketException("The connection timed out");
+        }
+
+        tcpClient.EndConnect(asyncResult);
+        return tcpClient;
     }
 
     private void startReceiving ()

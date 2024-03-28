@@ -1,5 +1,18 @@
 ![Logo](websocket-sharp_logo.png)
 
+## My changes
+
+Add `TCPConnectTimeout` and `HandshakeTimeout` field
+
+```
+_client = new WebSocket(uri);
+_client.OnMessage += OnClientMsg;
+_client.OnClose += OnClientClose;
+_client.OnError += OnClientErr;
+_client.TCPConnectTimeout = TimeSpan.FromMilliseconds(timeoutMs); // default 3 seconds, no timeout control if assign TimeSpan.Zero
+_client.HandshakeTimeout = TimeSpan.FromMilliseconds(timeoutMs);  // default 3 seconds
+```
+
 ## Welcome to websocket-sharp! ##
 
 websocket-sharp supports:
